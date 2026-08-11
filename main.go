@@ -17,14 +17,12 @@ import (
 	"syscall"
 	"time"
 )
-
 const (
 	discoverTimeout = 3 * time.Second
 	dialTimeout     = 5 * time.Second
 	replyTimeout    = 10 * time.Second
 	loadTimeout     = 30 * time.Second
 )
-
 const usage = `castpipe casts one local media file to a Chromecast.
 
   castpipe play <file> [--to <device>]   cast a file; Ctrl-C stops playback
@@ -41,7 +39,6 @@ func main() {
 		os.Exit(1)
 	}
 }
-
 func run(args []string) error {
 	if len(args) == 0 {
 		return errors.New("no command given\n\n" + usage)
@@ -72,7 +69,6 @@ func run(args []string) error {
 	}
 	return fmt.Errorf("unknown command %q\n\n%s", command, usage)
 }
-
 // parseArgs pulls --to out from wherever it appears, so that both
 // `play --to x file` and `play file --to x` work.
 func parseArgs(args []string) (command string, rest []string, to string, err error) {
@@ -92,7 +88,6 @@ func parseArgs(args []string) (command string, rest []string, to string, err err
 	}
 	return command, rest, to, nil
 }
-
 func listDevices() error {
 	devices, err := Discover(discoverTimeout)
 	if err != nil {
@@ -106,7 +101,6 @@ func listDevices() error {
 	}
 	return nil
 }
-
 func play(path, to string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -207,7 +201,6 @@ func play(path, to string) error {
 	}
 	return nil
 }
-
 func stop(to string) error {
 	device, err := resolve(to)
 	if err != nil {
@@ -305,6 +298,5 @@ func bracket(duration float64) string {
 }
 
 func clock(seconds float64) string {
-	whole := int(seconds)
-	return fmt.Sprintf("%d:%02d", whole/60, whole%60)
+	return fmt.Sprintf("%d:%02d", int(seconds)/60, int(seconds)%60)
 }

@@ -23,7 +23,6 @@ import (
 	"syscall"
 	"time"
 )
-
 // contentTypes is deliberately a list of what the Default Media Receiver can
 // actually decode. Anything else is refused up front instead of being handed
 // over in the hope that it works; notably .mkv, which the receiver does not
@@ -41,7 +40,6 @@ var contentTypes = map[string]string{
 	".mp4":  "video/mp4",
 	".webm": "video/webm",
 }
-
 func contentType(path string) (string, error) {
 	if t, ok := contentTypes[strings.ToLower(filepath.Ext(path))]; ok {
 		return t, nil
@@ -50,7 +48,6 @@ func contentType(path string) (string, error) {
 	return "", fmt.Errorf("a Chromecast cannot play %s files; supported: %s",
 		strings.ToLower(filepath.Ext(path)), strings.Join(kinds, " "))
 }
-
 // fileServer serves exactly one file, at one unguessable path, to whoever can
 // reach it. http.ServeFile gives us correct byte-range handling, which the
 // device relies on from its very first request.
@@ -140,6 +137,4 @@ func localNetworkHint(err error) error {
 		"then run it again.", err)
 }
 
-func isReset(err error) bool {
-	return errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE)
-}
+func isReset(err error) bool { return errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) }

@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 )
-
 const (
 	nsConnection = "urn:x-cast:com.google.cast.tp.connection"
 	nsHeartbeat  = "urn:x-cast:com.google.cast.tp.heartbeat"
@@ -38,11 +37,8 @@ const (
 	receiver = "receiver-0"
 	maxFrame = 1 << 20
 )
-
 var errProtobuf = errors.New("malformed castv2 message")
-
 type message struct{ Source, Dest, Namespace, Payload string }
-
 func encode(m message) []byte {
 	var b []byte
 	b = putVarint(b, 1, 0) // protocol_version
@@ -52,7 +48,6 @@ func encode(m message) []byte {
 	b = putVarint(b, 5, 0) // payload_type STRING
 	return putString(b, 6, m.Payload)
 }
-
 func decode(b []byte) (message, error) {
 	var m message
 	for len(b) > 0 {
@@ -101,7 +96,6 @@ func decode(b []byte) (message, error) {
 	}
 	return m, nil
 }
-
 func base128(b []byte, v uint64) []byte {
 	for v >= 0x80 {
 		b = append(b, byte(v)|0x80)
@@ -109,23 +103,16 @@ func base128(b []byte, v uint64) []byte {
 	}
 	return append(b, byte(v))
 }
-
-func putVarint(b []byte, field int, v uint64) []byte {
-	return base128(base128(b, uint64(field)<<3), v)
-}
-
+func putVarint(b []byte, field int, v uint64) []byte { return base128(base128(b, uint64(field)<<3), v) }
 func putString(b []byte, field int, s string) []byte {
-	b = base128(base128(b, uint64(field)<<3|2), uint64(len(s)))
-	return append(b, s...)
+	return append(base128(base128(b, uint64(field)<<3|2), uint64(len(s))), s...)
 }
-
 func frame(m message) []byte {
 	body := encode(m)
 	out := make([]byte, 4, 4+len(body))
 	binary.BigEndian.PutUint32(out, uint32(len(body)))
 	return append(out, body...)
 }
-
 func readFrame(r io.Reader) (message, error) {
 	var header [4]byte
 	if _, err := io.ReadFull(r, header[:]); err != nil {
@@ -141,7 +128,6 @@ func readFrame(r io.Reader) (message, error) {
 	}
 	return decode(body)
 }
-
 // session is one castv2 connection. Writes are serialised because the
 // interrupt handler sends on it while the main flow is blocked reading.
 type session struct {
@@ -149,7 +135,6 @@ type session struct {
 	mu        sync.Mutex
 	requestID int
 }
-
 // connect opens the TLS connection and joins the receiver's virtual
 // connection, without which the device ignores everything else we send.
 func connect(d Device) (*session, error) {
@@ -168,11 +153,8 @@ func connect(d Device) (*session, error) {
 	}
 	return s, nil
 }
-
 func (s *session) Close() error { return s.conn.Close() }
-
 type payload map[string]any
-
 func (s *session) send(namespace, dest string, p payload) error {
 	body, err := json.Marshal(p)
 	if err != nil {
@@ -183,14 +165,12 @@ func (s *session) send(namespace, dest string, p payload) error {
 	_, err = s.conn.Write(frame(message{sender, dest, namespace, string(body)}))
 	return err
 }
-
 func (s *session) nextRequest() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.requestID++
 	return s.requestID
 }
-
 // wait reads until handle reports it has seen what it was waiting for,
 // answering the device's heartbeat along the way: a connection whose PING goes
 // unanswered is dropped after a few seconds. A zero deadline means no limit.
@@ -216,15 +196,11 @@ func (s *session) wait(deadline time.Time, handle func(message) (bool, error)) e
 		}
 	}
 }
-
 func payloadType(p string) string {
-	var v struct {
-		Type string `json:"type"`
-	}
+	var v struct{ Type string `json:"type"` }
 	_ = json.Unmarshal([]byte(p), &v)
 	return v.Type
 }
-
 type receiverStatus struct {
 	Status struct {
 		Applications []struct {
@@ -234,7 +210,6 @@ type receiverStatus struct {
 		} `json:"applications"`
 	} `json:"status"`
 }
-
 // receiverApp waits for the device to report its running applications and
 // returns the one with appID, or with appID "" whichever app is running. An
 // empty sessionID means the device is idle.
@@ -263,7 +238,6 @@ func (s *session) receiverApp(appID string) (transport, sessionID string, err er
 	})
 	return transport, sessionID, err
 }
-
 // launch starts the Default Media Receiver and opens a virtual connection to
 // it, which it needs before it will accept a LOAD.
 func (s *session) launch(ctx context.Context) (transport, sessionID string, err error) {
@@ -271,34 +245,31 @@ func (s *session) launch(ctx context.Context) (transport, sessionID string, err 
 	if err := s.send(nsReceiver, receiver, p); err != nil {
 		return "", "", err
 	}
+	defer func() {
+		if err != nil {
+			s.rollbackLaunch(sessionID)
+		}
+	}()
 	if transport, sessionID, err = s.receiverApp(defaultReceiver); err != nil {
-		s.rollbackLaunch("")
-		return "", "", err
+		return
 	}
-	if err := ctx.Err(); err != nil {
-		s.rollbackLaunch(sessionID)
-		return "", "", err
+	if err = ctx.Err(); err != nil {
+		return
 	}
-	if err := s.send(nsConnection, transport, payload{"type": "CONNECT"}); err != nil {
-		s.rollbackLaunch(sessionID)
-		return "", "", err
+	if err = s.send(nsConnection, transport, payload{"type": "CONNECT"}); err != nil {
+		return
 	}
-	if err := ctx.Err(); err != nil {
-		s.rollbackLaunch(sessionID)
-		return "", "", err
-	}
-	return transport, sessionID, nil
+	err = ctx.Err()
+	return
 }
 
 func (s *session) rollbackLaunch(sessionID string) {
 	if sessionID == "" {
-		var err error
-		sessionID, err = s.running()
-		if err != nil || sessionID == "" {
-			return
-		}
+		sessionID, _ = s.running()
 	}
-	_ = s.quit(sessionID)
+	if sessionID != "" {
+		_ = s.quit(sessionID)
+	}
 }
 
 // running reports the session id of whatever the device is playing, or "".
@@ -313,24 +284,18 @@ func (s *session) running() (string, error) {
 
 // quit stops the running receiver application, returning the device to idle.
 func (s *session) quit(sessionID string) error {
-	return s.send(nsReceiver, receiver, payload{
-		"type": "STOP", "requestId": s.nextRequest(), "sessionId": sessionID,
-	})
+	return s.send(nsReceiver, receiver, payload{"type": "STOP", "requestId": s.nextRequest(), "sessionId": sessionID})
 }
 
 type playerState struct {
 	PlayerState string  `json:"playerState"`
 	CurrentTime float64 `json:"currentTime"`
 	IdleReason  string  `json:"idleReason"`
-	Media       struct {
-		Duration float64 `json:"duration"`
-	} `json:"media"`
+	Media       struct{ Duration float64 `json:"duration"` } `json:"media"`
 }
 
 func parseMedia(p string) []playerState {
-	var status struct {
-		Status []playerState `json:"status"`
-	}
+	var status struct{ Status []playerState `json:"status"` }
 	_ = json.Unmarshal([]byte(p), &status)
 	return status.Status
 }
