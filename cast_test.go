@@ -2,12 +2,54 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"io"
+	"net"
 	"strings"
 	"testing"
+	"time"
 )
+
+type launchConn struct {
+	read          *bytes.Reader
+	writes        []message
+	failTransport bool
+}
+
+func (c *launchConn) Read(p []byte) (int, error) { return c.read.Read(p) }
+func (c *launchConn) Write(p []byte) (int, error) {
+	m, err := readFrame(bytes.NewReader(p))
+	if err != nil {
+		return 0, err
+	}
+	if c.failTransport && m.Namespace == nsConnection && m.Dest != receiver {
+		c.failTransport = false
+		return 0, errors.New("transport connect failed")
+	}
+	c.writes = append(c.writes, m)
+	return len(p), nil
+}
+func (c *launchConn) Close() error                     { return nil }
+func (c *launchConn) LocalAddr() net.Addr              { return nil }
+func (c *launchConn) RemoteAddr() net.Addr             { return nil }
+func (c *launchConn) SetDeadline(time.Time) error      { return nil }
+func (c *launchConn) SetReadDeadline(time.Time) error  { return nil }
+func (c *launchConn) SetWriteDeadline(time.Time) error { return nil }
+
+func TestLaunchRollsBackTransportFailure(t *testing.T) {
+	status := message{Namespace: nsReceiver, Payload: `{"type":"RECEIVER_STATUS","status":{"applications":[{"appId":"CC1AD845","sessionId":"session-1","transportId":"transport-1"}]}}`}
+	conn := &launchConn{read: bytes.NewReader(frame(status)), failTransport: true}
+	s := &session{conn: conn}
+
+	if _, _, err := s.launch(context.Background()); err == nil {
+		t.Fatal("launch returned no error after transport CONNECT failed")
+	}
+	if len(conn.writes) != 2 || payloadType(conn.writes[1].Payload) != "STOP" {
+		t.Fatalf("writes after failed launch were %+v, want LAUNCH followed by STOP", conn.writes)
+	}
+}
 
 var connectMessage = message{
 	Source:    sender,

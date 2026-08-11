@@ -12,6 +12,7 @@ package main
 //	}
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/json"
@@ -265,15 +266,39 @@ func (s *session) receiverApp(appID string) (transport, sessionID string, err er
 
 // launch starts the Default Media Receiver and opens a virtual connection to
 // it, which it needs before it will accept a LOAD.
-func (s *session) launch() (transport, sessionID string, err error) {
+func (s *session) launch(ctx context.Context) (transport, sessionID string, err error) {
 	p := payload{"type": "LAUNCH", "requestId": s.nextRequest(), "appId": defaultReceiver}
 	if err := s.send(nsReceiver, receiver, p); err != nil {
 		return "", "", err
 	}
 	if transport, sessionID, err = s.receiverApp(defaultReceiver); err != nil {
+		s.rollbackLaunch("")
 		return "", "", err
 	}
-	return transport, sessionID, s.send(nsConnection, transport, payload{"type": "CONNECT"})
+	if err := ctx.Err(); err != nil {
+		s.rollbackLaunch(sessionID)
+		return "", "", err
+	}
+	if err := s.send(nsConnection, transport, payload{"type": "CONNECT"}); err != nil {
+		s.rollbackLaunch(sessionID)
+		return "", "", err
+	}
+	if err := ctx.Err(); err != nil {
+		s.rollbackLaunch(sessionID)
+		return "", "", err
+	}
+	return transport, sessionID, nil
+}
+
+func (s *session) rollbackLaunch(sessionID string) {
+	if sessionID == "" {
+		var err error
+		sessionID, err = s.running()
+		if err != nil || sessionID == "" {
+			return
+		}
+	}
+	_ = s.quit(sessionID)
 }
 
 // running reports the session id of whatever the device is playing, or "".

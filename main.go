@@ -149,8 +149,11 @@ func play(path, to string) error {
 		return nil
 	}
 
-	transport, sessionID, err := session.launch()
+	transport, sessionID, err := session.launch(ctx)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
 		return err
 	}
 	done := make(chan struct{})
