@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 )
+
 // Device is one Cast receiver, which may be a single speaker or a group.
 type Device struct {
 	Name  string // friendly name, e.g. "Living Room Speakers"
@@ -24,6 +25,7 @@ type Device struct {
 	Host  string // IPv4 address
 	Port  int    // dynamic, and not 8009 for a group: always take it from SRV
 }
+
 // Addr is the host:port to open a castv2 connection to.
 func (d Device) Addr() string { return net.JoinHostPort(d.Host, strconv.Itoa(d.Port)) }
 
@@ -34,7 +36,9 @@ const (
 	typeTXT = 16
 	typeSRV = 33
 )
+
 var errMalformed = errors.New("malformed DNS message")
+
 // Discover asks every usable interface and joins the answers that arrive
 // before the timeout. It never returns a partially-resolved device.
 func Discover(timeout time.Duration) ([]Device, error) {
@@ -67,6 +71,7 @@ func Discover(timeout time.Duration) ([]Device, error) {
 	}
 	return devices, nil
 }
+
 // browse asks from one interface address and collects replies until the
 // timeout, asking a second time on the way because mDNS is unacknowledged.
 func browse(src net.IP, timeout time.Duration, r *records) error {

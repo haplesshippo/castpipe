@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 )
+
 const (
 	discoverTimeout = 3 * time.Second
 	dialTimeout     = 5 * time.Second
@@ -69,6 +70,7 @@ func run(args []string) error {
 	}
 	return fmt.Errorf("unknown command %q\n\n%s", command, usage)
 }
+
 // parseArgs pulls --to out from wherever it appears, so that both
 // `play --to x file` and `play file --to x` work.
 func parseArgs(args []string) (command string, rest []string, to string, err error) {

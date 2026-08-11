@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 )
+
 const (
 	nsConnection = "urn:x-cast:com.google.cast.tp.connection"
 	nsHeartbeat  = "urn:x-cast:com.google.cast.tp.heartbeat"
@@ -37,8 +38,11 @@ const (
 	receiver = "receiver-0"
 	maxFrame = 1 << 20
 )
+
 var errProtobuf = errors.New("malformed castv2 message")
+
 type message struct{ Source, Dest, Namespace, Payload string }
+
 func encode(m message) []byte {
 	var b []byte
 	b = putVarint(b, 1, 0) // protocol_version
@@ -128,6 +132,7 @@ func readFrame(r io.Reader) (message, error) {
 	}
 	return decode(body)
 }
+
 // session is one castv2 connection. Writes are serialised because the
 // interrupt handler sends on it while the main flow is blocked reading.
 type session struct {
@@ -135,6 +140,7 @@ type session struct {
 	mu        sync.Mutex
 	requestID int
 }
+
 // connect opens the TLS connection and joins the receiver's virtual
 // connection, without which the device ignores everything else we send.
 func connect(d Device) (*session, error) {
@@ -154,7 +160,9 @@ func connect(d Device) (*session, error) {
 	return s, nil
 }
 func (s *session) Close() error { return s.conn.Close() }
+
 type payload map[string]any
+
 func (s *session) send(namespace, dest string, p payload) error {
 	body, err := json.Marshal(p)
 	if err != nil {
@@ -171,6 +179,7 @@ func (s *session) nextRequest() int {
 	s.requestID++
 	return s.requestID
 }
+
 // wait reads until handle reports it has seen what it was waiting for,
 // answering the device's heartbeat along the way: a connection whose PING goes
 // unanswered is dropped after a few seconds. A zero deadline means no limit.
@@ -197,10 +206,13 @@ func (s *session) wait(deadline time.Time, handle func(message) (bool, error)) e
 	}
 }
 func payloadType(p string) string {
-	var v struct{ Type string `json:"type"` }
+	var v struct {
+		Type string `json:"type"`
+	}
 	_ = json.Unmarshal([]byte(p), &v)
 	return v.Type
 }
+
 type receiverStatus struct {
 	Status struct {
 		Applications []struct {
@@ -210,6 +222,7 @@ type receiverStatus struct {
 		} `json:"applications"`
 	} `json:"status"`
 }
+
 // receiverApp waits for the device to report its running applications and
 // returns the one with appID, or with appID "" whichever app is running. An
 // empty sessionID means the device is idle.
@@ -238,6 +251,7 @@ func (s *session) receiverApp(appID string) (transport, sessionID string, err er
 	})
 	return transport, sessionID, err
 }
+
 // launch starts the Default Media Receiver and opens a virtual connection to
 // it, which it needs before it will accept a LOAD.
 func (s *session) launch(ctx context.Context) (transport, sessionID string, err error) {
@@ -291,11 +305,15 @@ type playerState struct {
 	PlayerState string  `json:"playerState"`
 	CurrentTime float64 `json:"currentTime"`
 	IdleReason  string  `json:"idleReason"`
-	Media       struct{ Duration float64 `json:"duration"` } `json:"media"`
+	Media       struct {
+		Duration float64 `json:"duration"`
+	} `json:"media"`
 }
 
 func parseMedia(p string) []playerState {
-	var status struct{ Status []playerState `json:"status"` }
+	var status struct {
+		Status []playerState `json:"status"`
+	}
 	_ = json.Unmarshal([]byte(p), &status)
 	return status.Status
 }
