@@ -191,6 +191,32 @@ The protobuf encoding is pinned byte for byte, because a wrong field number
 still round-trips through your own decoder while every device silently ignores
 you.
 
+## Contributing
+
+Keep code files small: target 500 physical lines or fewer. Above 800 lines,
+the file-length check warns but passes; above 1000, it fails. Exactly 800 is
+quiet and exactly 1000 warns. Blank lines and comments count. LF and CRLF
+each end one line; a final unterminated line counts once.
+
+Run the same checks as CI before submitting changes:
+
+```sh
+test -z "$(gofmt -l .)"
+go vet ./...
+go test -v ./...
+```
+
+The file-length check runs in `go test ./...`; use `-v` to see passing
+warnings, as CI does. It scans all authored `.go` files, including tests,
+new local files and `testdata/gen.go`, plus `.github/workflows/*.yml` and
+`*.yaml` command configuration and `.no-mistakes.yaml` if present. It skips
+Go files with the standard `// Code generated ... DO NOT EDIT.` header,
+Git metadata and vendor code. Prose, fixture data, lockfiles and binaries
+are outside the code policy; `testdata`
+itself is not exempt. Compiled build output such as `castpipe` is excluded,
+but authored Go tools under directories named `build` or `dist` still count.
+The check uses only the standard library.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
